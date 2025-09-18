@@ -22,11 +22,10 @@ vim.opt.clipboard = 'unnamedplus'
 require("lazy").setup("plugins-lazy")
 
 -- LSP configuration with nvim-navic
-local nvim_lsp = require('lspconfig')
 local navic = require("nvim-navic")
 
 -- Clangd setup
-nvim_lsp.clangd.setup({
+vim.lsp.config.clangd = {
   cmd = {
     "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu",
     "--completion-style=detailed", "--function-arg-placeholders", "--fallback-style=llvm",
@@ -41,10 +40,10 @@ nvim_lsp.clangd.setup({
     vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<Cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
     vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', { noremap = true, silent = true })
   end
-})
+}
 
 -- Pyright setup
-nvim_lsp.pyright.setup {
+vim.lsp.config.pyright = {
   capabilities = require('cmp_nvim_lsp').default_capabilities(),
   on_attach = function(client, bufnr)
     if client.server_capabilities.documentSymbolProvider then
@@ -83,5 +82,28 @@ vim.o.statusline = "%f %m %= %{%v:lua.require'nvim-navic'.get_location()%} %l:%c
 
 -- Key mappings
 vim.keymap.set('n', '<leader>no', ':tabnew | NERDTree<CR>')
+
+-- Enhanced navigation
+vim.keymap.set('n', '<C-u>', '<C-u>zz')  -- Center after half-page up
+vim.keymap.set('n', '<C-d>', '<C-d>zz')  -- Center after half-page down
+vim.keymap.set('n', 'n', 'nzzzv')        -- Center after search next
+vim.keymap.set('n', 'N', 'Nzzzv')        -- Center after search prev
+vim.keymap.set('n', '*', '*zzzv')        -- Center after search word
+vim.keymap.set('n', '#', '#zzzv')        -- Center after search word back
+
+-- Quick buffer navigation
+vim.keymap.set('n', '<leader>bn', ':bnext<CR>')
+vim.keymap.set('n', '<leader>bp', ':bprev<CR>')
+vim.keymap.set('n', '<leader>bd', ':bdelete<CR>')
+
+-- Jump to start/end of line
+vim.keymap.set({'n', 'v'}, 'H', '^')
+vim.keymap.set({'n', 'v'}, 'L', '$')
+
+-- Better window navigation
+vim.keymap.set('n', '<C-h>', '<C-w>h')
+vim.keymap.set('n', '<C-j>', '<C-w>j')
+vim.keymap.set('n', '<C-k>', '<C-w>k')
+vim.keymap.set('n', '<C-l>', '<C-w>l')
 
 vim.cmd.colorscheme("robot")
