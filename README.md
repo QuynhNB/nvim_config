@@ -221,38 +221,54 @@ require("lazy").setup("plugins-lazy")
 -- LSP configuration with nvim-navic
 local navic = require("nvim-navic")
 
--- Clangd setup
-vim.lsp.config.clangd = {
-  cmd = {
-    "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu",
-    "--completion-style=detailed", "--function-arg-placeholders", "--fallback-style=llvm",
-  },
-  capabilities = require('cmp_nvim_lsp').default_capabilities(),
-  on_attach = function(client, bufnr)
+-- Common on_attach function
+local function on_attach(client, bufnr)
+  if client.server_capabilities.semanticTokensProvider then
     client.server_capabilities.semanticTokensProvider = nil
-    if client.server_capabilities.documentSymbolProvider then
-      navic.attach(client, bufnr)
-    end
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<Cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<Cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', { noremap = true, silent = true })
   end
-}
+  if client.server_capabilities.documentSymbolProvider then
+    navic.attach(client, bufnr)
+  end
 
--- Pyright setup
-vim.lsp.config.pyright = {
-  capabilities = require('cmp_nvim_lsp').default_capabilities(),
-  on_attach = function(client, bufnr)
-    if client.server_capabilities.documentSymbolProvider then
-      navic.attach(client, bufnr)
-    end
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<Cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<Cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', '<leader>ca', '<Cmd>lua vim.lsp.buf.code_action()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', '<leader>rn', '<Cmd>lua vim.lsp.buf.rename()<CR>', { noremap = true, silent = true })
+  local opts = { noremap = true, silent = true, buffer = bufnr }
+  vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+  vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+  vim.keymap.set('n', 'gR', '<cmd>Telescope lsp_references<cr>', opts)  -- Workspace references
+  vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+  vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+  vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
+end
+
+-- Auto-start LSP servers
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "c", "cpp", "objc", "objcpp", "cuda" },
+  callback = function()
+    vim.lsp.start({
+      name = "clangd",
+      cmd = {
+        "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu",
+        "--completion-style=detailed", "--function-arg-placeholders", "--fallback-style=llvm",
+        "--cross-file-rename", "--all-scopes-completion",
+      },
+      root_dir = vim.fs.dirname(vim.fs.find({'compile_commands.json', '.git', 'Makefile', 'CMakeLists.txt'}, { upward = true })[1]),
+      capabilities = require('cmp_nvim_lsp').default_capabilities(),
+      on_attach = on_attach,
+    })
   end,
-}
+})
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "python" },
+  callback = function()
+    vim.lsp.start({
+      name = "pyright",
+      cmd = { "pyright-langserver", "--stdio" },
+      root_dir = vim.fs.dirname(vim.fs.find({'.git', 'pyproject.toml', 'setup.py'}, { upward = true })[1]),
+      capabilities = require('cmp_nvim_lsp').default_capabilities(),
+      on_attach = on_attach,
+    })
+  end,
+})
 
 -- nvim-cmp setup
 local cmp = require'cmp'
@@ -325,7 +341,8 @@ EOF
 | `<leader>fs` | Find symbols in file |
 | `<leader>fw` | Find workspace symbols |
 | `gd` | Go to definition |
-| `gr` | Find references |
+| `gr` | Find references (workspace-wide) |
+| `gR` | Find references (Telescope UI) |
 | `K` | Hover documentation |
 | `<leader>ca` | Code actions |
 | `<leader>rn` | Rename symbol |
@@ -357,8 +374,25 @@ EOF
 - **Centered Scrolling**: Auto-center on navigation
 - **Symbol Search**: Find symbols across workspace
 
+## Workspace Setup for C/C++
+
+For workspace-wide navigation (references, symbols), create a compilation database:
+
+```bash
+# If using Make:
+bear -- make
+
+# If using CMake:
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON .
+
+# For simple projects, create compile_commands.json manually:
+echo '[{"directory": "'$(pwd)'", "command": "clang -c *.c", "file": "main.c"}]' > compile_commands.json
+```
+
 ## Troubleshooting
 
 - If clangd not found: Install `clang-tools` package
 - If pyright not found: Run `npm install -g pyright`
 - For compile_commands.json: Use `bear make` or CMake with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`
+- If references only work in current file: Create `compile_commands.json` in project root
+- Install bear for compilation database: `sudo apt install bear` (Ubuntu) or `brew install bear` (macOS)

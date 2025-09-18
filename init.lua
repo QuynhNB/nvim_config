@@ -24,38 +24,54 @@ require("lazy").setup("plugins-lazy")
 -- LSP configuration with nvim-navic
 local navic = require("nvim-navic")
 
--- Clangd setup
-vim.lsp.config.clangd = {
-  cmd = {
-    "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu",
-    "--completion-style=detailed", "--function-arg-placeholders", "--fallback-style=llvm",
-  },
-  capabilities = require('cmp_nvim_lsp').default_capabilities(),
-  on_attach = function(client, bufnr)
+-- Common on_attach function
+local function on_attach(client, bufnr)
+  if client.server_capabilities.semanticTokensProvider then
     client.server_capabilities.semanticTokensProvider = nil
-    if client.server_capabilities.documentSymbolProvider then
-      navic.attach(client, bufnr)
-    end
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<Cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<Cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', { noremap = true, silent = true })
   end
-}
+  if client.server_capabilities.documentSymbolProvider then
+    navic.attach(client, bufnr)
+  end
 
--- Pyright setup
-vim.lsp.config.pyright = {
-  capabilities = require('cmp_nvim_lsp').default_capabilities(),
-  on_attach = function(client, bufnr)
-    if client.server_capabilities.documentSymbolProvider then
-      navic.attach(client, bufnr)
-    end
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<Cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<Cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', '<leader>ca', '<Cmd>lua vim.lsp.buf.code_action()<CR>', { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(bufnr, 'n', '<leader>rn', '<Cmd>lua vim.lsp.buf.rename()<CR>', { noremap = true, silent = true })
+  local opts = { noremap = true, silent = true, buffer = bufnr }
+  vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+  vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+  vim.keymap.set('n', 'gR', '<cmd>Telescope lsp_references<cr>', opts)  -- Workspace references
+  vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+  vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+  vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
+end
+
+-- Auto-start LSP servers
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "c", "cpp", "objc", "objcpp", "cuda" },
+  callback = function()
+    vim.lsp.start({
+      name = "clangd",
+      cmd = {
+        "clangd", "--background-index", "--clang-tidy", "--header-insertion=iwyu",
+        "--completion-style=detailed", "--function-arg-placeholders", "--fallback-style=llvm",
+        "--cross-file-rename", "--all-scopes-completion",
+      },
+      root_dir = vim.fs.dirname(vim.fs.find({'compile_commands.json', '.git', 'Makefile', 'CMakeLists.txt'}, { upward = true })[1]),
+      capabilities = require('cmp_nvim_lsp').default_capabilities(),
+      on_attach = on_attach,
+    })
   end,
-}
+})
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "python" },
+  callback = function()
+    vim.lsp.start({
+      name = "pyright",
+      cmd = { "pyright-langserver", "--stdio" },
+      root_dir = vim.fs.dirname(vim.fs.find({'.git', 'pyproject.toml', 'setup.py'}, { upward = true })[1]),
+      capabilities = require('cmp_nvim_lsp').default_capabilities(),
+      on_attach = on_attach,
+    })
+  end,
+})
 
 -- nvim-cmp setup
 local cmp = require'cmp'
